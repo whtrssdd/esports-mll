@@ -1,0 +1,592 @@
+#include <iostream>
+#include <string>
+#include <limits>
+using namespace std;
+
+// ini ADT
+// Child: elemen Pertandingan
+struct Pertandingan {
+    int id;             // kunci child (unik di dalam satu turnamen)
+    string timA;
+    string timB;
+    int skorA;
+    int skorB;
+    string status;      // Dijadwalkan / Berlangsung / Selesai
+    Pertandingan* next; // pointer ke child berikutnya
+};
+
+// Parent: elemen Turnamen
+struct Turnamen {
+    int id;             
+    string nama;
+    string game;
+    long long prizePool;
+    Pertandingan* childHead; 
+    Turnamen* next;          
+};
+
+// List utama (Parent List)
+struct ListTurnamen {
+    Turnamen* head;
+};
+
+// Helper input
+int readInt(const string& prompt) {
+    int x;
+    while (true) {
+        cout << prompt;
+        if (cin >> x) {
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            return x;
+        }
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Input harus berupa angka, coba lagi.\n";
+    }
+}
+
+long long readLL(const string& prompt) {
+    long long x;
+    while (true) {
+        cout << prompt;
+        if (cin >> x) {
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            return x;
+        }
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Input harus berupa angka, coba lagi.\n";
+    }
+}
+
+string readLine(const string& prompt) {
+    cout << prompt;
+    string s;
+    getline(cin, s);
+    return s;
+}
+
+// ---------------------------------------------------------------------
+// Pembuatan elemen (createParent & createChild)
+// ---------------------------------------------------------------------
+Turnamen* createParent(int id, const string& nama, const string& game, long long prizePool) {
+    Turnamen* p = new Turnamen;
+    p->id = id;
+    p->nama = nama;
+    p->game = game;
+    p->prizePool = prizePool;
+    p->childHead = nullptr;
+    p->next = nullptr;
+    return p;
+}
+
+Pertandingan* createChild(int id, const string& timA, const string& timB,
+                          int skorA, int skorB, const string& status) {
+    Pertandingan* c = new Pertandingan;
+    c->id = id;
+    c->timA = timA;
+    c->timB = timB;
+    c->skorA = skorA;
+    c->skorB = skorB;
+    c->status = status;
+    c->next = nullptr;
+    return c;
+}
+
+
+// Pengelolaan Parent List
+// Mencari parent berdasarkan ID. Mengembalikan nullptr jika tidak ada.
+Turnamen* findParent(const ListTurnamen& L, int id) {
+    Turnamen* cur = L.head;
+    while (cur != nullptr && cur->id != id) {
+        cur = cur->next;
+    }
+    return cur;
+}
+
+// Mencari parent berdasarkan nama (kembalian pertama yang cocok).
+Turnamen* findParentByNama(const ListTurnamen& L, const string& nama) {
+    Turnamen* cur = L.head;
+    while (cur != nullptr && cur->nama != nama) {
+        cur = cur->next;
+    }
+    return cur;
+}
+
+// Menambahkan parent di akhir List. Jika ID sudah ada, elemen dibuang
+// dan fungsi mengembalikan false agar struktur tidak rusak.
+bool insertParent(ListTurnamen& L, Turnamen* p) {
+    if (p == nullptr) return false;
+    if (findParent(L, p->id) != nullptr) {
+        delete p;
+        return false;
+    }
+    p->next = nullptr;
+    if (L.head == nullptr) {
+        L.head = p;                   
+    } else {
+        Turnamen* cur = L.head;
+        while (cur->next != nullptr) { 
+            cur = cur->next;
+        }
+        cur->next = p;
+    }
+    return true;
+}
+
+void deleteAllChildren(Pertandingan* head) {
+    while (head != nullptr) {
+        Pertandingan* tmp = head;
+        head = head->next;
+        delete tmp;
+    }
+}
+
+// Mengeluarkan parent dari List beserta seluruh child-nya.
+// Menangani kasus: elemen pertama, tengah, dan terakhir.
+bool deleteParent(ListTurnamen& L, int id) {
+    Turnamen* prev = nullptr;
+    Turnamen* cur = L.head;
+    while (cur != nullptr && cur->id != id) {
+        prev = cur;
+        cur = cur->next;
+    }
+    if (cur == nullptr) return false;  
+
+    if (prev == nullptr) {
+        L.head = cur->next;        
+    } else {
+        prev->next = cur->next;      
+    }
+    deleteAllChildren(cur->childHead);
+    delete cur;
+    return true;
+}
+
+// Mengubah angka menjadi format ribuan, misalnya 100000000 menjadi 100.000.000
+string formatRupiah(long long n) {
+    bool negatif = n < 0;
+    if (negatif) n = -n;
+
+    string angka = to_string(n);
+    string hasil = "";
+    int hitung = 0;
+
+    for (int i = angka.size() - 1; i >= 0; i--) {
+        hasil.insert(hasil.begin(), angka[i]);
+        hitung++;
+        if (hitung % 3 == 0 && i > 0) {
+            hasil.insert(hasil.begin(), '.');
+        }
+    }
+    return (negatif ? "-" : "") + hasil;
+}
+
+// Menampilkan seluruh parent (tanpa child).
+void printParent(const ListTurnamen& L) {
+    if (L.head == nullptr) {
+        cout << "Daftar turnamen kosong.\n";
+        return;
+    }
+    cout << "=== DAFTAR TURNAMEN ===\n";
+    for (const Turnamen* cur = L.head; cur != nullptr; cur = cur->next) {
+        cout << "ID: " << cur->id
+             << " | Nama: " << cur->nama
+             << " | Game: " << cur->game
+             << " | Prize Pool: Rp " << formatRupiah(cur->prizePool) << "\n";
+    }
+}
+
+// Menghitung jumlah parent.
+int countParents(const ListTurnamen& L) {
+    int n = 0;
+    for (const Turnamen* cur = L.head; cur != nullptr; cur = cur->next) n++;
+    return n;
+}
+
+// Pengelolaan Child List
+// Mencari child berdasarkan ID di dalam satu parent.
+Pertandingan* findChild(const Turnamen* parent, int childId) {
+    if (parent == nullptr) return nullptr;
+    Pertandingan* cur = parent->childHead;
+    while (cur != nullptr && cur->id != childId) {
+        cur = cur->next;
+    }
+    return cur;
+}
+
+// Menambahkan child di akhir daftar child milik parent tertentu.
+bool insertChild(Turnamen* parent, Pertandingan* c) {
+    if (parent == nullptr || c == nullptr) {
+        delete c;
+        return false;
+    }
+    if (findChild(parent, c->id) != nullptr) { 
+        delete c;
+        return false;
+    }
+    c->next = nullptr;
+    if (parent->childHead == nullptr) {
+        parent->childHead = c;                 
+    } else {
+        Pertandingan* cur = parent->childHead;
+        while (cur->next != nullptr) {
+            cur = cur->next;
+        }
+        cur->next = c;
+    }
+    return true;
+}
+
+// Menghapus child dari parent tertentu. Parent lain tidak tersentuh.
+bool deleteChild(Turnamen* parent, int childId) {
+    if (parent == nullptr) return false;
+    Pertandingan* prev = nullptr;
+    Pertandingan* cur = parent->childHead;
+    while (cur != nullptr && cur->id != childId) {
+        prev = cur;
+        cur = cur->next;
+    }
+    if (cur == nullptr) return false;
+
+    if (prev == nullptr) {
+        parent->childHead = cur->next;  
+    } else {
+        prev->next = cur->next;       
+    }
+    delete cur;
+    return true;
+}
+
+// Mengubah skor dan status sebuah pertandingan (fitur tambahan).
+bool updateSkor(Turnamen* parent, int childId, int skorA, int skorB, const string& status) {
+    Pertandingan* c = findChild(parent, childId);
+    if (c == nullptr) return false;
+    c->skorA = skorA;
+    c->skorB = skorB;
+    c->status = status;
+    return true;
+}
+
+// Menghitung jumlah child milik satu parent (fitur tambahan).
+int countChildren(const Turnamen* parent) {
+    if (parent == nullptr) return 0;
+    int n = 0;
+    for (const Pertandingan* cur = parent->childHead; cur != nullptr; cur = cur->next) n++;
+    return n;
+}
+
+void printChildLine(const Pertandingan* c) {
+    cout << "    [ID " << c->id << "] "
+         << c->timA << " vs " << c->timB
+         << " | Skor: " << c->skorA << " - " << c->skorB
+         << " | Status: " << c->status << "\n";
+}
+
+// Menampilkan daftar child dari satu parent.
+void printChild(const Turnamen* parent) {
+    if (parent == nullptr) {
+        cout << "Turnamen tidak ditemukan.\n";
+        return;
+    }
+    cout << "Pertandingan pada turnamen \"" << parent->nama << "\":\n";
+    if (parent->childHead == nullptr) {
+        cout << "    (belum ada pertandingan)\n";
+        return;
+    }
+    for (const Pertandingan* cur = parent->childHead; cur != nullptr; cur = cur->next) {
+        printChildLine(cur);
+    }
+}
+
+// Mencari child berdasarkan nama tim di seluruh parent (fitur tambahan).
+void findChildByTim(const ListTurnamen& L, const string& tim) {
+    bool ketemu = false;
+    for (const Turnamen* p = L.head; p != nullptr; p = p->next) {
+        for (const Pertandingan* c = p->childHead; c != nullptr; c = c->next) {
+            if (c->timA == tim || c->timB == tim) {
+                if (!ketemu) cout << "Hasil pencarian untuk tim \"" << tim << "\":\n";
+                cout << "  Turnamen: " << p->nama << "\n";
+                printChildLine(c);
+                ketemu = true;
+            }
+        }
+    }
+    if (!ketemu) cout << "Tim \"" << tim << "\" tidak ditemukan pada pertandingan manapun.\n";
+}
+
+// Menampilkan seluruh struktur MLL
+void printAll(const ListTurnamen& L) {
+    if (L.head == nullptr) {
+        cout << "Struktur kosong, tidak ada data untuk ditampilkan.\n";
+        return;
+    }
+    for (const Turnamen* p = L.head; p != nullptr; p = p->next) {
+        cout << "[PARENT] ID " << p->id << " - " << p->nama
+             << " (" << p->game << ", Prize Pool Rp " << formatRupiah(p->prizePool) << ")\n";
+        if (p->childHead == nullptr) {
+            cout << "    (belum ada pertandingan)\n";
+        } else {
+            for (const Pertandingan* c = p->childHead; c != nullptr; c = c->next) {
+                printChildLine(c);
+            }
+        }
+    }
+}
+
+// Menu interaktif
+// Meminta ID parent dari pengguna lalu mengembalikan pointer parent-nya.
+Turnamen* pilihParent(const ListTurnamen& L) {
+    int id = readInt("Masukkan ID turnamen: ");
+    Turnamen* p = findParent(L, id);
+    if (p == nullptr) cout << "Turnamen dengan ID " << id << " tidak ditemukan.\n";
+    return p;
+}
+
+void menuTambahTurnamen(ListTurnamen& L) {
+    int id = readInt("ID turnamen: ");
+    string nama = readLine("Nama turnamen: ");
+    string game = readLine("Game: ");
+    long long prize = readLL("Prize pool (Rp): ");
+
+    Turnamen* p = createParent(id, nama, game, prize);
+    if (insertParent(L, p)) {
+        cout << "Turnamen berhasil ditambahkan.\n";
+    } else {
+        cout << "Gagal: ID turnamen sudah digunakan.\n";
+    }
+}
+
+void menuCariTurnamen(const ListTurnamen& L) {
+    cout << "1. Cari berdasarkan ID\n2. Cari berdasarkan nama\n";
+    int pilih = readInt("Pilih: ");
+    Turnamen* p = nullptr;
+    if (pilih == 1) {
+        p = pilihParent(L);
+    } else if (pilih == 2) {
+        string nama = readLine("Nama turnamen: ");
+        p = findParentByNama(L, nama);
+        if (p == nullptr) cout << "Turnamen \"" << nama << "\" tidak ditemukan.\n";
+    } else {
+        cout << "Pilihan tidak valid.\n";
+        return;
+    }
+    if (p != nullptr) {
+        cout << "Ditemukan: [ID " << p->id << "] " << p->nama
+             << " | Game: " << p->game
+             << " | Prize Pool: Rp " << formatRupiah(p->prizePool)
+             << " | Jumlah pertandingan: " << countChildren(p) << "\n";
+    }
+}
+
+void menuHapusTurnamen(ListTurnamen& L) {
+    int id = readInt("ID turnamen yang dihapus: ");
+    if (deleteParent(L, id)) {
+        cout << "Turnamen beserta seluruh pertandingannya berhasil dihapus.\n";
+    } else {
+        cout << "Turnamen dengan ID " << id << " tidak ditemukan.\n";
+    }
+}
+
+void menuTambahPertandingan(ListTurnamen& L) {
+    Turnamen* p = pilihParent(L);
+    if (p == nullptr) return;
+
+    int id = readInt("ID pertandingan: ");
+    string timA = readLine("Tim A: ");
+    string timB = readLine("Tim B: ");
+    int skorA = readInt("Skor tim A: ");
+    int skorB = readInt("Skor tim B: ");
+    cout << "Status: 1. Dijadwalkan  2. Berlangsung  3. Selesai\n";
+    int st = readInt("Pilih status: ");
+    string status = (st == 2) ? "Berlangsung" : (st == 3) ? "Selesai" : "Dijadwalkan";
+
+    if (insertChild(p, createChild(id, timA, timB, skorA, skorB, status))) {
+        cout << "Pertandingan berhasil ditambahkan ke turnamen \"" << p->nama << "\".\n";
+    } else {
+        cout << "Gagal: ID pertandingan sudah ada pada turnamen ini.\n";
+    }
+}
+
+void menuCariPertandingan(const ListTurnamen& L) {
+    cout << "1. Cari berdasarkan ID turnamen dan ID pertandingan\n"
+         << "2. Cari berdasarkan nama tim (semua turnamen)\n";
+    int pilih = readInt("Pilih: ");
+    if (pilih == 1) {
+        Turnamen* p = pilihParent(L);
+        if (p == nullptr) return;
+        int id = readInt("ID pertandingan: ");
+        Pertandingan* c = findChild(p, id);
+        if (c == nullptr) cout << "Pertandingan tidak ditemukan.\n";
+        else { cout << "Ditemukan:\n"; printChildLine(c); }
+    } else if (pilih == 2) {
+        findChildByTim(L, readLine("Nama tim: "));
+    } else {
+        cout << "Pilihan tidak valid.\n";
+    }
+}
+
+void menuUpdateSkor(ListTurnamen& L) {
+    Turnamen* p = pilihParent(L);
+    if (p == nullptr) return;
+    int id = readInt("ID pertandingan: ");
+    int skorA = readInt("Skor tim A baru: ");
+    int skorB = readInt("Skor tim B baru: ");
+    cout << "Status: 1. Dijadwalkan  2. Berlangsung  3. Selesai\n";
+    int st = readInt("Pilih status: ");
+    string status = (st == 2) ? "Berlangsung" : (st == 3) ? "Selesai" : "Dijadwalkan";
+
+    if (updateSkor(p, id, skorA, skorB, status)) cout << "Skor berhasil diperbarui.\n";
+    else cout << "Pertandingan tidak ditemukan.\n";
+}
+
+void menuHapusPertandingan(ListTurnamen& L) {
+    Turnamen* p = pilihParent(L);
+    if (p == nullptr) return;
+    int id = readInt("ID pertandingan yang dihapus: ");
+    if (deleteChild(p, id)) cout << "Pertandingan berhasil dihapus.\n";
+    else cout << "Pertandingan tidak ditemukan.\n";
+}
+
+void menuTampilPertandingan(const ListTurnamen& L) {
+    Turnamen* p = pilihParent(L);
+    if (p != nullptr) printChild(p);
+}
+
+// Pengujian otomatis (sesuai bagian Pengujian pada spesifikasi)
+void check(bool kondisi, const string& nama, int& pass, int& fail) {
+    if (kondisi) {
+        cout << "[PASS] " << nama << "\n";
+        pass++;
+    } else {
+        cout << "[FAIL] " << nama << "\n";
+        fail++;
+    }
+}
+
+void runTests() {
+    cout << "\n===== PENGUJIAN OTOMATIS =====\n";
+    ListTurnamen T;
+    T.head = nullptr;
+    int pass = 0, fail = 0;
+
+    // 1. Kondisi data kosong
+    check(findParent(T, 1) == nullptr, "Cari parent pada List kosong", pass, fail);
+    check(!deleteParent(T, 1), "Hapus parent pada List kosong", pass, fail);
+    check(!deleteChild(findParent(T, 1), 1), "Hapus child pada parent yang tidak ada", pass, fail);
+
+    // 2. Penambahan parent (minimal 3)
+    insertParent(T, createParent(1, "MPL Season 1", "Mobile Legends", 500000000));
+    insertParent(T, createParent(2, "Valorant Champions", "Valorant", 900000000));
+    insertParent(T, createParent(3, "PUBG Invitational", "PUBG Mobile", 300000000));
+    check(countParents(T) == 3, "Tambah 3 parent", pass, fail);
+    check(!insertParent(T, createParent(2, "Duplikat", "X", 0)), "Tolak parent dengan ID duplikat", pass, fail);
+    check(countParents(T) == 3, "Jumlah parent tetap 3 setelah duplikat ditolak", pass, fail);
+    check(findParent(T, 2) != nullptr && findParent(T, 2)->nama == "Valorant Champions",
+          "Cari parent berdasarkan ID", pass, fail);
+    check(findParent(T, 99) == nullptr, "Cari parent yang tidak ada", pass, fail);
+    check(findParentByNama(T, "PUBG Invitational") != nullptr, "Cari parent berdasarkan nama", pass, fail);
+
+    // 3. Penambahan child (minimal 5)
+    Turnamen* p1 = findParent(T, 1);
+    Turnamen* p2 = findParent(T, 2);
+    Turnamen* p3 = findParent(T, 3);
+    insertChild(p1, createChild(101, "RRQ", "EVOS", 2, 1, "Selesai"));
+    insertChild(p1, createChild(102, "ONIC", "BTR", 0, 0, "Dijadwalkan"));
+    insertChild(p1, createChild(103, "AE", "ECHO", 2, 0, "Selesai"));
+    insertChild(p2, createChild(201, "Sentinels", "Fnatic", 1, 2, "Selesai"));
+    insertChild(p3, createChild(301, "Bigetron", "Alter Ego", 0, 0, "Berlangsung"));
+    check(countChildren(p1) == 3 && countChildren(p2) == 1 && countChildren(p3) == 1,
+          "Tambah child ke parent yang dipilih", pass, fail);
+    check(!insertChild(p1, createChild(101, "Dup", "Dup", 0, 0, "Selesai")),
+          "Tolak child dengan ID duplikat dalam satu turnamen", pass, fail);
+    check(countChildren(p1) == 3, "Jumlah child tetap 3 setelah duplikat ditolak", pass, fail);
+
+    // 4. Pencarian child berdasarkan parent
+    check(findChild(p1, 102) != nullptr, "Cari child 102 pada parent 1", pass, fail);
+    check(findChild(p2, 102) == nullptr, "Child 102 tidak ditemukan pada parent 2", pass, fail);
+
+    // 5. Hapus child dari parent tertentu (elemen tengah)
+    check(deleteChild(p1, 102), "Hapus child tengah (102) dari parent 1", pass, fail);
+    check(countChildren(p1) == 2 && countChildren(p2) == 1,
+          "Parent lain tidak terpengaruh saat child dihapus", pass, fail);
+    check(findChild(p1, 101) != nullptr && findChild(p1, 103) != nullptr,
+          "Child lain pada parent yang sama masih utuh", pass, fail);
+
+    // 6. Hapus parent elemen tengah (dengan child)
+    check(deleteParent(T, 2), "Hapus parent tengah (ID 2) yang memiliki child", pass, fail);
+    check(findParent(T, 2) == nullptr && countParents(T) == 2, "Parent 2 terhapus dari List", pass, fail);
+    check(findParent(T, 1)->next == findParent(T, 3), "Hubungan parent 1 ke 3 tetap benar", pass, fail);
+
+    // 7. Hapus parent elemen pertama
+    check(deleteParent(T, 1), "Hapus parent pertama (ID 1)", pass, fail);
+    check(T.head != nullptr && T.head->id == 3, "Parent 3 menjadi elemen pertama", pass, fail);
+    check(countChildren(findParent(T, 3)) == 1, "Child parent 3 tidak rusak setelah parent 1 dihapus", pass, fail);
+
+    // 8. Update skor
+    check(updateSkor(findParent(T, 3), 301, 2, 1, "Selesai"), "Update skor dan status child", pass, fail);
+
+    // 9. Hapus parent elemen terakhir (sekaligus pertama)
+    check(deleteParent(T, 3), "Hapus parent terakhir (ID 3)", pass, fail);
+    check(T.head == nullptr, "List kosong setelah semua parent dihapus", pass, fail);
+
+    cout << "\nHasil: " << pass << " lulus, " << fail << " gagal.\n";
+    cout << "===== AKHIR PENGUJIAN =====\n\n";
+}
+
+// Membersihkan seluruh memori saat program keluar.
+void freeAll(ListTurnamen& L) {
+    while (L.head != nullptr) {
+        deleteParent(L, L.head->id);
+    }
+}
+
+// Main
+int main() {
+    ListTurnamen L;
+    L.head = nullptr;
+
+    int pilihan;
+    do {
+        cout << "\n===== ESPORTS TOURNAMENT MANAGEMENT =====\n"
+             << "1. Tambah turnamen\n"
+             << "2. Tampilkan semua turnamen\n"
+             << "3. Cari turnamen\n"
+             << "4. Hapus turnamen\n"
+             << "5. Tambah pertandingan ke turnamen\n"
+             << "6. Cari pertandingan\n"
+             << "7. Tampilkan pertandingan dari turnamen\n"
+             << "8. Update skor pertandingan\n"
+             << "9. Hapus pertandingan\n"
+             << "10. Tampilkan seluruh struktur MLL\n"
+             << "11. Jalankan pengujian otomatis\n"
+             << "0. Keluar\n";
+        pilihan = readInt("Pilih menu: ");
+
+        switch (pilihan) {
+            case 1:  menuTambahTurnamen(L); break;
+            case 2:  printParent(L); break;
+            case 3:  menuCariTurnamen(L); break;
+            case 4:  menuHapusTurnamen(L); break;
+            case 5:  menuTambahPertandingan(L); break;
+            case 6:  menuCariPertandingan(L); break;
+            case 7:  menuTampilPertandingan(L); break;
+            case 8:  menuUpdateSkor(L); break;
+            case 9:  menuHapusPertandingan(L); break;
+            case 10: printAll(L); break;
+            case 11: runTests(); break;
+            case 0:  cout << "Program selesai.\n"; break;
+            default: cout << "Pilihan tidak valid.\n"; break;
+        }
+    } while (pilihan != 0);
+
+    freeAll(L);
+    return 0;
+}
+
+// Tugas Besar Struktur Data
+// Studi Kasus: Esports Tournament Management
+// Model: Multi Linked List (List to List)
+//   Parent List : Turnamen (nama, game, prize pool)
+//   Child List  : Pertandingan (tim A, tim B, skor, status)
+// Compile: g++ -std=c++11 -Wall -o esports_mll esports_mll.cpp
